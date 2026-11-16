@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stand-up Slot Machine</title>
+<style>
+:root{color-scheme:dark;--bg:#14101f;--card:#1e1830;--fg:#f1ecff;--mute:#a99fc7;--line:#3a3058;--accent:#8b6ce0;--accent2:#5b3fb5;--gold:#cdb9ff;--reel:#0f0b1a;--chip:#2a2145;--done:#6a5f8e;--shadow:rgba(0,0,0,.55);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;min-height:100vh}
+main{max-width:520px;margin:0 auto;padding:20px 16px 40px;text-align:center}
+h1{font-size:1.6rem;margin:8px 0 2px;letter-spacing:-.02em}
+.sub{margin:0 0 18px;color:var(--mute);font-size:.95rem}
+.machine{background:linear-gradient(160deg,var(--accent),var(--accent2));border-radius:28px;padding:16px;margin:0 40px;box-shadow:0 12px 30px var(--shadow);border:4px solid var(--gold);position:relative}
+.window{position:relative;height:252px;overflow:hidden;border-radius:18px;background:var(--reel);border:3px solid rgba(0,0,0,.25);box-shadow:inset 0 8px 18px rgba(0,0,0,.25),inset 0 -8px 18px rgba(0,0,0,.25)}
+.strip{will-change:transform}
+.item{height:84px;display:flex;align-items:center;justify-content:center;font-size:2.1rem;font-weight:800;letter-spacing:-.01em;color:var(--fg)}
+.item.dim{color:var(--mute);opacity:.5}
+.window::before,.window::after{content:"";position:absolute;left:0;right:0;height:84px;z-index:2;pointer-events:none}
+.window::before{top:0;background:linear-gradient(var(--reel),transparent)}
+.window::after{bottom:0;background:linear-gradient(transparent,var(--reel))}
+.mark{position:absolute;left:0;right:0;top:84px;height:84px;border-top:3px solid var(--gold);border-bottom:3px solid var(--gold);z-index:3;pointer-events:none}
+#spin{margin-top:14px;width:100%;font:inherit;font-weight:900;font-size:1.4rem;letter-spacing:.12em;padding:16px;border:0;border-radius:16px;background:var(--gold);color:#1d1038;cursor:pointer;box-shadow:0 6px 0 #8f74d6;transition:transform .08s,box-shadow .08s}
+#spin:active:not(:disabled){transform:translateY(5px);box-shadow:0 1px 0 #8f74d6}
+#spin:disabled{opacity:.7;cursor:default}
+#lever{position:absolute;right:-46px;top:40px;width:44px;height:210px;border:0;background:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+#lever:disabled{cursor:default}
+#lever .arm{position:absolute;left:0;right:0;top:0;height:128px;transform-origin:50% 100%}
+#lever .rod{position:absolute;left:50%;top:30px;bottom:0;width:9px;margin-left:-4.5px;border-radius:5px;background:linear-gradient(90deg,#8f84b3,#f0ebff,#8f84b3)}
+#lever .ball{position:absolute;left:50%;top:0;width:38px;height:38px;margin-left:-19px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#cdb9ff 45%,#7a5bd0);box-shadow:0 4px 8px rgba(0,0,0,.4)}
+#lever .base{position:absolute;left:-6px;top:110px;width:34px;height:34px;border-radius:8px;background:linear-gradient(#3b2d6b,#241a45);border:2px solid var(--gold)}
+@keyframes pull{0%{transform:scaleY(1)}45%{transform:scaleY(-.7)}100%{transform:scaleY(1)}}
+#lever .arm.pull{animation:pull .9s cubic-bezier(.4,0,.2,1)}
+.result{min-height:2.2em;margin:18px 0 6px;font-size:1.25rem;font-weight:700}
+.actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:22px}
+.ghost{font:inherit;font-size:.85rem;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.ghost:disabled{opacity:.4;cursor:default}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.1em;color:var(--mute);margin:0 0 10px}
+#chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.chip{padding:8px 14px;border-radius:999px;background:var(--chip);font-weight:600;font-size:.95rem;border:2px solid transparent;transition:all .25s}
+.chip.done{color:var(--done);text-decoration:line-through;background:transparent;border-color:var(--line)}
+.chip.now{color:var(--fg);text-decoration:none;border-color:var(--gold);background:var(--chip)}
+.conf{position:fixed;top:-12px;width:10px;height:14px;z-index:50;pointer-events:none;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:.9}}
+</style>
+</head>
+<body>
+<main>
+  <h1>🎰 Stand-up Slot Machine</h1>
+  <p class="sub">Round <b id="round">1</b> · <span id="left">12</span> still to go</p>
+  <div class="machine">
+    <div class="window"><div class="strip" id="strip"></div><div class="mark"></div></div>
+    <button id="lever" aria-label="Pull the lever to spin" title="Pull to spin"><span class="arm" id="arm"><span class="rod"></span><span class="ball"></span></span><span class="base"></span></button>
+    <button id="spin">SPIN</button>
+  </div>
+  <div class="result" id="result" aria-live="polite">Ready when you’re ready</div>
+  <div class="actions">
+    <button class="ghost" id="undo">↩ Put last pick back</button>
+    <button class="ghost" id="reset">New round</button>
+    <button class="ghost" id="snd">🔊 Sound on</button>
+  </div>
+  <h2>This round</h2>
+  <div id="chips"></div>
+</main>
+<script>
+const NAMES=["Nazim","Ally","Umar","Sarah","Sameen","Jinson","Taz","Greg","Nada","Shashi","Tessa","Vedant"];
+const H=84,KEY="standup-slot-v1",FILL=30;
+const $=id=>document.getElementById(id);
+const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+let busy=false,sound=true,ac=null;
+const fresh=()=>({round:1,remaining:NAMES.slice(),last:null,hist:[]});
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s.round==="number"&&Array.isArray(s.remaining)&&s.remaining.every(n=>NAMES.includes(n))&&Array.isArray(s.hist))return s}catch(e){}return fresh()}
+let st=load();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}}
+function rnd(n){try{const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}catch(e){return Math.floor(Math.random()*n)}}
+function setStrip(names,y,anim){
+  const s=$("strip");
+  s.style.transition="none";
+  s.innerHTML=names.map(n=>'<div class="item'+(n==="•"?" dim":"")+'">'+n+"</div>").join("");
+  s.style.transform="translateY("+y+"px)";
+  s.getBoundingClientRect();
+  if(anim){s.style.transition="transform "+(reduce?.6:3.8)+"s cubic-bezier(.12,.7,.1,1)";s.style.transform="translateY("+(-(FILL)*H)+"px)"}
+}
+function idle(){setStrip(["•",st.last||"?","•"],0,false)}
+function render(){
+  $("round").textContent=st.round;
+  $("left").textContent=st.remaining.length;
+  $("chips").innerHTML=NAMES.map(n=>{
+    const done=!st.remaining.includes(n);
+    return '<span class="chip'+(done?" done":"")+(n===st.last&&done?" now":"")+'">'+n+"</span>"
+  }).join("");
+  $("undo").disabled=busy||!st.hist.length;
+}
+function tone(f,t,d){
+  if(!sound)return;
+  try{
+    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type="triangle";o.frequency.value=f;
+    g.gain.setValueAtTime(.0001,ac.currentTime+t);
+    g.gain.exponentialRampToValueAtTime(.2,ac.currentTime+t+.02);
+    g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+t+d);
+    o.connect(g);g.connect(ac.destination);
+    o.start(ac.currentTime+t);o.stop(ac.currentTime+t+d+.05);
+  }catch(e){}
+}
+function chime(){[523,659,784,1047].forEach((f,i)=>tone(f,i*.11,.25))}
+function confetti(){
+  const cols=["#cdb9ff","#a78bfa","#8b6ce0","#e9defe","#b794f6"];
+  for(let i=0;i<44;i++){
+    const c=document.createElement("span");c.className="conf";
+    c.style.left=Math.random()*100+"vw";
+    c.style.background=cols[i%cols.length];
+    c.style.animationDuration=(1.6+Math.random()*1.4)+"s";
+    c.style.animationDelay=(Math.random()*.4)+"s";
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(),3600);
+  }
+}
+function pullArm(){const a=$("arm");a.classList.remove("pull");void a.offsetWidth;a.classList.add("pull")}
+function spin(){
+  if(busy)return;
+  busy=true;$("spin").disabled=true;$("lever").disabled=true;pullArm();
+  let newRound=false;
+  if(!st.remaining.length){st.round++;st.remaining=NAMES.slice();newRound=true}
+  let pool=st.remaining;
+  if(newRound&&st.last)pool=pool.filter(n=>n!==st.last);
+  const w=pool[rnd(pool.length)];
+  st.remaining=st.remaining.filter(n=>n!==w);
+  const prev=st.last;
+  st.last=w;st.hist.push({name:w,newRound:newRound,prev:prev});
+  save();
+  $("result").textContent="Spinning…";
+  const items=[prev||"?"];
+  for(let i=0;i<FILL;i++){items.push(NAMES[rnd(NAMES.length)])}
+  items.push(w);items.push(NAMES[rnd(NAMES.length)]);
+  setStrip(items,H,true);
+  for(let i=0;i<14;i++)tone(300+i*18,i*.2*(reduce?.15:1),.05);
+  setTimeout(()=>{
+    busy=false;$("spin").disabled=false;$("lever").disabled=false;
+    const left=st.remaining.length;
+    $("result").textContent="🎉 "+w+", you’re up!"+(left===0?" That’s everyone this round.":"");
+    chime();if(!reduce)confetti();
+    render();
+  },(reduce?.7:3.9)*1000);
+  render();
+}
+function undo(){
+  if(busy||!st.hist.length)return;
+  const h=st.hist.pop();
+  if(h.newRound){st.round--;st.remaining=[]}else{st.remaining.push(h.name)}
+  st.last=h.prev||null;
+  save();idle();render();
+  $("result").textContent=h.name+" is back in the pool";
+}
+function resetRound(){
+  if(busy)return;
+  const last=st.last;
+  st={round:st.round+1,remaining:NAMES.slice(),last:last,hist:[]};
+  save();idle();render();
+  $("result").textContent="Fresh round, everyone’s back in";
+}
+$("spin").onclick=spin;
+$("lever").onclick=spin;
+$("undo").onclick=undo;
+$("reset").onclick=resetRound;
+$("snd").onclick=()=>{sound=!sound;$("snd").textContent=sound?"🔊 Sound on":"🔇 Sound off"};
+document.addEventListener("keydown",e=>{if((e.code==="Space"||e.code==="Enter")&&e.target===document.body){e.preventDefault();spin()}});
+idle();render();
+</script>
+</body>
+</html>
